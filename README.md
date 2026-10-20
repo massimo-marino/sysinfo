@@ -16,7 +16,7 @@ Needs a C++20 compiler (GCC 11+/Clang 14+) and CMake 3.20+.
 sudo apt install build-essential cmake
 cmake -S . -B build
 cmake --build build -j
-ctest --test-dir build        # optional
+ctest --test-dir build        # optional: 12 command line tests (see the manual)
 ./build/sysinfo
 ```
 
