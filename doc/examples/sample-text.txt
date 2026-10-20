@@ -1,0 +1,59 @@
+System
+------
+  Hostname                   <redacted>
+  Operating system           Ubuntu 24.04.5 LTS
+  Kernel                     Linux 6.18.44-fc-v139
+  Architecture               x86_64
+  Virtualization             yes (hypervisor flag set)
+  Uptime                     0 h, 8 min
+  Load average (1/5/15 min)  0.37  0.15  0.05
+
+Processor
+---------
+  Model                          Intel(R) Xeon(R) Processor @ 2.10GHz
+  Vendor                         GenuineIntel
+  Family / model / stepping      6 / 207 / 2
+  Microcode                      0x1
+  Sockets                        1
+  Physical cores                 2
+  Logical cores (threads)        2
+  SMT / Hyper-Threading          not supported
+  NUMA nodes                     1
+  Current frequency, cpu0 (MHz)  2100
+  Instruction extensions         SSE2, SSE4.1, SSE4.2, AVX, AVX2, FMA, AVX-512F, AVX-512BW, AVX-512VL, AVX-512 VNNI, AMX, AES-NI, SHA, BMI2, POPCNT, VAES
+  Caches (cpu0)                  L1d 48K, L1i 32K, L2 2048K, L3 266240K
+  Cache line size                64 B
+
+Memory
+------
+  Total RAM               7.8 GiB
+  Available RAM           7.4 GiB
+  Swap                    none
+  Transparent huge pages  always [madvise] never
+  Huge page size          2 MiB
+  Page size               4 KiB
+
+Storage
+-------
+  Disk vda                256.0 GiB, virtual disk
+  Disk vdb                10 MiB, virtual disk
+  Disk vdc                305 MiB, virtual disk
+  Disk vdd                48 MiB, virtual disk
+  Disk vde                692 KiB, virtual disk
+  Disk vdf                6 MiB, virtual disk
+  Mount /                 ext4 (/dev/vda), 252.0 GiB, 30% used
+  Mount /opt/claude-code  ext4 (/dev/vdc), 304 MiB, 92% used
+  Mount /opt/env-runner   ext4 (/dev/vdd), 47 MiB, 66% used
+
+Build
+-----
+  Compiler          GCC 13.3.0
+  Standard library  libstdc++ (GCC 13, 20240904)
+  C++ standard      C++20 (202002L)
+  Build type        Release
+  Compiler flags    -O3 -DNDEBUG
+  Pointer size      64 bit
+  Byte order        little endian
+  Assertions        disabled (NDEBUG)
+  C library         glibc 2.39
+  sysinfo version   1.0.0

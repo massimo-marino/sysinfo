@@ -1,0 +1,12 @@
+sys_hostname=<redacted>
+sys_os=Ubuntu 24.04.5 LTS
+sys_kernel=Linux 6.18.44-fc-v139
+sys_arch=x86_64
+sys_virtualized=yes (hypervisor flag set)
+sys_uptime=0 h, 8 min
+sys_loadavg=0.37  0.15  0.05
+sys_cpu_model=Intel(R) Xeon(R) Processor @ 2.10GHz
+sys_cpu_vendor=GenuineIntel
+sys_cpu_signature=6 / 207 / 2
+sys_cpu_microcode=0x1
+sys_cpu_sockets=1

@@ -1,0 +1,9 @@
+system	System	(core)
+cpu	Processor	(core)
+memory	Memory	(core)
+storage	Storage
+gpu	Graphics
+network	Network
+sensors	Power and temperature
+environment	Environment
+build	Build	(core)

@@ -1,0 +1,26 @@
+{
+  "sysinfo": "1.0.0",
+  "redacted": true,
+  "sections": {
+    "memory": {
+      "sys_ram_total": "7.8 GiB",
+      "sys_ram_available": "7.4 GiB",
+      "sys_swap": "none",
+      "sys_thp": "always [madvise] never",
+      "sys_hugepages": "2 MiB",
+      "sys_page_size": "4 KiB"
+    },
+    "build": {
+      "sys_compiler": "GCC 13.3.0",
+      "sys_stdlib": "libstdc++ (GCC 13, 20240904)",
+      "sys_cxx_std": "C++20 (202002L)",
+      "sys_build_type": "Release",
+      "sys_cxx_flags": "-O3 -DNDEBUG",
+      "sys_pointer_bits": "64 bit",
+      "sys_endianness": "little endian",
+      "sys_assertions": "disabled (NDEBUG)",
+      "sys_libc": "glibc 2.39",
+      "sys_sysinfo_version": "1.0.0"
+    }
+  }
+}

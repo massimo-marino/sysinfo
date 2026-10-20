@@ -1,0 +1,579 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{mathptmx}
+\usepackage[scaled=.92]{helvet}
+\usepackage{courier}
+\usepackage{microtype}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{accent}{HTML}{1F5C8B}
+\definecolor{codebg}{HTML}{F5F7FA}
+\definecolor{codeframe}{HTML}{C9D3DE}
+\definecolor{comment}{HTML}{5C6B7A}
+
+\hypersetup{pdftitle={sysinfo User Manual},pdfauthor={sysinfo},colorlinks=true,linkcolor=accent,urlcolor=accent}
+
+\setlist{itemsep=2pt,topsep=4pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\renewcommand{\arraystretch}{1.2}
+
+\lstdefinestyle{base}{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  frame=single, rulecolor=\color{codeframe},
+  breaklines=true, breakatwhitespace=false,
+  postbreak=\mbox{\textcolor{comment}{$\hookrightarrow$}\space},
+  columns=fullflexible, keepspaces=true,
+  aboveskip=8pt, belowskip=6pt,
+  xleftmargin=4pt, xrightmargin=4pt, framexleftmargin=4pt,
+  showstringspaces=false, upquote=true,
+}
+\lstdefinestyle{shell}{style=base,language=bash,commentstyle=\color{comment}\itshape,
+  morekeywords={sysinfo,cmake,sudo,apt,ctest,jq,grep,diff}}
+\lstdefinestyle{out}{style=base}
+\lstdefinestyle{cpp}{style=base,language=C++,keywordstyle=\color{accent}\bfseries,commentstyle=\color{comment}\itshape}
+\lstdefinestyle{cmake}{style=base,commentstyle=\color{comment}\itshape,
+  morekeywords={add_subdirectory,target_link_libraries,FetchContent_Declare,FetchContent_MakeAvailable,find_package},
+  keywordstyle=\color{accent}\bfseries}
+\lstset{style=shell}
+
+\newcommand{\cmd}[1]{\texttt{#1}}
+\newcommand{\opt}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\key}[1]{\texttt{\detokenize{sys_#1}}}
+\newcommand{\prog}{\texttt{sysinfo}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{comment}{sysinfo User Manual}}
+\fancyhead[R]{\small\textcolor{comment}{version 1.0.0}}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\begin{document}
+
+% ---------------------------------------------------------------------------
+\begin{titlepage}
+\vspace*{3.5cm}
+{\Huge\bfseries\color{accent} sysinfo}\par
+\vspace{4pt}
+{\Large Print the specifications of the machine you are on}\par
+\vspace{1.2cm}
+{\large User Manual \quad$\cdot$\quad Version 1.0.0}\par
+\vspace{2cm}
+\begin{minipage}{0.8\textwidth}
+\prog{} is a small command line program for Linux that reports the operating system, processor,
+memory, storage, graphics, network, sensors, user environment and the toolchain it was built with.
+It reads only \cmd{/proc}, \cmd{/sys} and a few system calls: no external programs, no root rights, no
+network access. The output is available as readable text, JSON or \texttt{key=value} lines.
+\end{minipage}
+\vfill
+{\small Primary platform: Ubuntu 24.04 LTS and newer \quad $\cdot$ \quad C++20 \quad $\cdot$ \quad CMake $\geq$ 3.20}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ---------------------------------------------------------------------------
+\section{Quick start}
+
+\begin{lstlisting}
+sudo apt install build-essential cmake      # once
+cmake -S . -B build                         # configure (Release by default)
+cmake --build build -j                      # compile
+./build/sysinfo                             # print everything
+./build/sysinfo -s cpu,memory               # only some sections
+./build/sysinfo -f json -o machine.json     # machine readable, to a file
+\end{lstlisting}
+
+That is all that is needed. The rest of this manual describes the options (Section~\ref{sec:cli}), the
+information that is reported (Section~\ref{sec:sections}), how to embed the collector in your own
+program (Section~\ref{sec:library}) and what to do when something looks wrong
+(Section~\ref{sec:trouble}).
+
+% ---------------------------------------------------------------------------
+\section{Installation}
+
+\subsection{Requirements}
+
+\begin{itemize}
+  \item A C++20 compiler: GCC 11 or newer, or Clang 14 or newer with libstdc++. Ubuntu 24.04 ships GCC 13.
+  \item CMake 3.20 or newer (Ubuntu 24.04 ships 3.28).
+  \item For this manual only: a \LaTeX{} installation with \cmd{latexmk}
+        (\cmd{sudo apt install latexmk texlive-latex-recommended texlive-latex-extra}).
+\end{itemize}
+
+No third-party libraries are used.
+
+\subsection{Building}
+
+\begin{lstlisting}
+cmake -S . -B build
+cmake --build build -j
+ctest --test-dir build            # optional: 12 tests
+\end{lstlisting}
+
+If no build type is given, CMake configures a \texttt{Release} build. The build type and the compiler flags
+are recorded in the executable and reported in the \texttt{build} section.
+
+CMake options:
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Option & Default & Meaning \\
+\midrule
+\opt{SYSINFO_BUILD_CLI}          & ON  & build the \prog{} executable \\
+\opt{SYSINFO_BUILD_TESTS}        & ON  & register the tests for \cmd{ctest} (top-level builds only) \\
+\opt{SYSINFO_WARNINGS_AS_ERRORS} & OFF & compile with \cmd{-Werror} (\cmd{/WX} on MSVC) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Example with another compiler and a debug build:
+
+\begin{lstlisting}
+cmake -S . -B build-clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Debug
+\end{lstlisting}
+
+\subsection{Installing}
+
+\begin{lstlisting}
+sudo cmake --install build                          # to /usr/local/bin
+cmake --install build --prefix "$HOME/.local"       # without root
+\end{lstlisting}
+
+\subsection{Building this manual}
+
+\begin{lstlisting}
+cmake --build build --target manual                 # -> build/doc/sysinfo-manual.pdf
+\end{lstlisting}
+
+The target exists when \cmd{latexmk} is found at configure time. The example outputs in this manual are the
+files in \cmd{doc/examples/}, generated by the program itself.
+
+% ---------------------------------------------------------------------------
+\section{Command line reference}
+\label{sec:cli}
+
+\begin{lstlisting}
+sysinfo [OPTIONS]
+\end{lstlisting}
+
+\subsection{Options}
+
+Options may appear in any order. Short options can be combined (\opt{-vr}) and may have their value attached
+(\opt{-fjson}, \opt{-scpu,memory}). Long options accept \opt{--name value} and \opt{--name=value}.
+
+\begin{longtable}{@{}p{4.6cm}p{10.4cm}@{}}
+\toprule
+Option & Description \\
+\midrule
+\endhead
+\opt{-s, --section LIST} & Report only these sections. \texttt{LIST} is comma separated and the option may be
+repeated. Names: \texttt{system cpu memory storage gpu network sensors environment build}; plus \texttt{core}
+(system, cpu, memory, build) and \texttt{all}. Sections are always printed in the standard order, whatever the order
+on the command line. \\
+\opt{-x, --exclude LIST} & Leave these sections out; same syntax. Applied after \opt{--section}. \\
+\opt{-l, --list} & Print the available sections (identifier, title, \texttt{(core)}) and exit. \\
+\opt{-v, --verbose} & Add the long tail: the full CPU flag list, swappiness and overcommit policy, pseudo
+file systems (\texttt{tmpfs}, \dots), disks such as loop devices, virtual network interfaces and link-local IPv6
+addresses. \\
+\midrule
+\opt{-f, --format FORMAT} & \texttt{text} (default), \texttt{json} or \texttt{kv}. See Section~\ref{sec:formats}. \\
+\opt{-j, --json} & Shortcut for \opt{--format json}. \\
+\opt{-o, --output FILE} & Write to \texttt{FILE} (created or truncated) instead of standard output. Colour is then off. \\
+\opt{-r, --redact} & Replace identifying values (hostname, user name, MAC and IP addresses) by
+\texttt{<redacted>}; see Section~\ref{sec:privacy}. \\
+\opt{--color[=WHEN]} & Colour the text format. \texttt{WHEN} is \texttt{auto} (default: only on a terminal, and
+not if \texttt{NO\_COLOR} is set or \texttt{TERM=dumb}), \texttt{always} or \texttt{never}. Without a value:
+\texttt{always}. \\
+\opt{--no-color} & Same as \opt{--color=never}. \\
+\midrule
+\opt{-h, --help} & Show the usage summary and exit. \\
+\opt{-V, --version} & Print \texttt{sysinfo 1.0.0} and exit. \\
+\bottomrule
+\end{longtable}
+
+The built-in help text:
+
+\lstinputlisting[style=out]{examples/help.txt}
+
+\subsection{Exit status}
+
+\begin{center}
+\begin{tabular}{@{}cl@{}}
+\toprule
+Code & Meaning \\
+\midrule
+0 & success \\
+1 & the output file could not be opened, or writing failed (disk full, \dots) \\
+2 & usage error: unknown option or section, missing value, unexpected argument \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+A piece of information that cannot be determined never makes the program fail: it is shown as
+\texttt{unknown} or left out. Usage errors are reported on standard error.
+
+\subsection{Environment}
+
+\begin{description}[style=nextline]
+  \item[\texttt{NO\_COLOR}] If set and non-empty, colour is not used in \texttt{auto} mode
+        (see \url{https://no-color.org}).
+  \item[\texttt{TERM}] \texttt{dumb} disables automatic colour.
+\end{description}
+
+\subsection{Examples}
+
+\begin{lstlisting}
+sysinfo -l                         # which sections exist?
+sysinfo -s cpu                     # processor only
+sysinfo -s core -x build           # system, cpu and memory
+sysinfo -v -s cpu                  # processor, including all CPU flags
+sysinfo -r > report.txt            # safe to paste into a bug report
+sysinfo -j | jq '.sections.cpu.sys_cpu_model'
+sysinfo -f kv -s memory | grep ram_total
+\end{lstlisting}
+
+% ---------------------------------------------------------------------------
+\section{Output formats}
+\label{sec:formats}
+
+\subsection{Text}
+
+Each section has a title; entries are listed as \emph{label}, \emph{value}. This is the format for reading.
+Example (hostname and other identifying values redacted, abbreviated virtual machine):
+
+\lstinputlisting[style=out]{examples/sample-text.txt}
+
+\subsection{JSON}
+
+One object with the program version, whether redaction was active, and a \texttt{sections} object that maps
+each section identifier to an object of \emph{key} $\to$ \emph{value} strings. All values are strings; text is valid
+UTF-8 (invalid bytes found in system files are replaced by U+FFFD).
+
+\lstinputlisting[style=out]{examples/sample-json.json}
+
+\subsection{Key/value}
+
+One \texttt{key=value} per line, no quoting, in section order. Convenient for shell scripts and \cmd{grep}.
+
+\lstinputlisting[style=out]{examples/sample-kv.txt}
+
+The keys are the same in all formats; they are stable and always start with \texttt{sys\_}.
+
+% ---------------------------------------------------------------------------
+\section{What is reported}
+\label{sec:sections}
+
+All keys start with \texttt{sys\_}; the tables omit the prefix. Entries marked $\dagger$ are
+optional: they are left out when the system does not provide them. Entries marked $^{*}$ are
+identifying and are hidden by \opt{--redact}. Entries marked $^{v}$ appear only with \opt{--verbose}.
+
+\subsection{system \textnormal{--- operating system and machine}}
+
+\begin{longtable}{@{}p{5.7cm}p{10cm}@{}}
+\toprule Key & Content \\ \midrule \endhead
+\key{hostname}$^{*}$ & Host name. \\
+\key{os}               & Distribution name and version from \cmd{/etc/os-release}, e.g.\ \texttt{Ubuntu 24.04.5 LTS}. \\
+\key{kernel}           & Kernel name and release. \\
+\key{arch}             & Machine architecture (\texttt{x86\_64}, \texttt{aarch64}, \dots). \\
+\key{machine}$^\dagger$  & System vendor and product from DMI (or the device-tree model on ARM boards). \\
+\key{board}$^\dagger$    & Mainboard vendor and name. \\
+\key{firmware}$^\dagger$ & BIOS/UEFI vendor, version and date. \\
+\key{virtualized}      & \texttt{yes} when the CPU reports a hypervisor or the DMI data names a virtual machine; otherwise
+                         \texttt{no hypervisor flag}. \\
+\key{container}$^\dagger$ & Docker, Podman, Kubernetes, LXC, \dots, when running inside one. \\
+\key{wsl}$^\dagger$      & \texttt{yes} under Windows Subsystem for Linux. \\
+\key{uptime}           & Time since boot. \\
+\key{loadavg}          & Load average over 1, 5 and 15 minutes. \\
+\bottomrule
+\end{longtable}
+
+\subsection{cpu \textnormal{--- processor}}
+
+\begin{longtable}{@{}p{5.7cm}p{10cm}@{}}
+\toprule Key & Content \\ \midrule \endhead
+\key{cpu_model}              & Marketing name of the processor. \\
+\key{cpu_vendor}$^\dagger$     & Vendor string (\texttt{GenuineIntel}, \texttt{AuthenticAMD}, \dots). \\
+\key{cpu_signature}$^\dagger$  & x86 family / model / stepping. \\
+\key{cpu_microcode}$^\dagger$  & Microcode revision. \\
+\key{cpu_sockets}            & Number of processor packages. \\
+\key{cpu_physical_cores}     & Number of physical cores (distinct hardware thread sibling groups). \\
+\key{cpu_logical_cores}      & Number of online hardware threads. \\
+\key{cpu_smt}$^\dagger$        & Simultaneous multithreading: \texttt{on}, \texttt{off} or \texttt{not supported}. \\
+\key{cpu_numa_nodes}$^\dagger$ & Number of NUMA nodes. \\
+\key{cpu_usable_cores}$^\dagger$ & Threads this process may run on, shown only when restricted (\cmd{taskset}, cpuset). \\
+\key{cpu_cgroup_limit}$^\dagger$ & CPU quota of the container/cgroup, in CPUs. \\
+\key{cpu_max_mhz}$^\dagger$\newline\key{cpu_min_mhz}$^\dagger$ & Frequency range allowed by the hardware, MHz (number only). \\
+\key{cpu_cur_mhz}$^\dagger$    & Current frequency of cpu0, MHz (number only). \\
+\key{cpu_governor}$^\dagger$   & Frequency governor of all CPUs; marked \texttt{(mixed)} if they differ. \\
+\key{cpu_freq_driver}$^\dagger$ & Frequency scaling driver (\texttt{intel\_pstate}, \texttt{amd-pstate}, \dots). \\
+\key{cpu_turbo}$^\dagger$      & Turbo/boost \texttt{enabled} or \texttt{disabled}. \\
+\key{cpu_simd}$^\dagger$       & Notable instruction set extensions (SSE4.2, AVX2, AVX-512, AES-NI, NEON, SVE, \dots). \\
+\key{cpu_flags}$^{v}$          & The complete flag list from \cmd{/proc/cpuinfo}. \\
+\key{cpu_caches}$^\dagger$     & Cache sizes of cpu0, e.g.\ \texttt{L1d 48K, L1i 32K, L2 2048K, L3 266240K}. \\
+\key{cpu_cache_line}$^\dagger$ & L1 data cache line size. \\
+\bottomrule
+\end{longtable}
+
+\subsection{memory}
+
+\begin{longtable}{@{}p{5.7cm}p{10cm}@{}}
+\toprule Key & Content \\ \midrule \endhead
+\key{ram_total}                & Installed RAM as seen by the kernel (GiB, one decimal). \\
+\key{ram_available}$^\dagger$    & RAM available to new programs without swapping. \\
+\key{ram_cgroup_limit}$^\dagger$ & Memory limit of the container/cgroup, when lower than the physical RAM. \\
+\key{swap}$^\dagger$             & Swap size and use, or \texttt{none}. \\
+\key{thp}$^\dagger$              & Transparent huge pages mode; the active one is in brackets. \\
+\key{hugepages}$^\dagger$        & Huge page size and the number of reserved pages. \\
+\key{page_size}$^\dagger$        & Virtual memory page size. \\
+\key{overcommit}$^{v}$\newline\key{swappiness}$^{v}$ & Kernel tunables \cmd{vm.overcommit\_memory} and \cmd{vm.swappiness}. \\
+\bottomrule
+\end{longtable}
+
+\subsection{storage}
+
+\begin{longtable}{@{}p{5.7cm}p{10cm}@{}}
+\toprule Key & Content \\ \midrule \endhead
+\key{disk_}\textit{name} & One per block device: size, kind (\texttt{NVMe SSD}, \texttt{SSD}, \texttt{HDD},
+\texttt{virtual disk}, \texttt{MMC/SD}) and model. Loop, RAM, optical and device-mapper devices only with \opt{--verbose}. \\
+\key{fs_}\textit{mount}  & One per mounted file system: type, source device, size and percentage used. By default only
+file systems backed by storage (ext4, xfs, btrfs, zfs, vfat, ntfs, NFS, \dots) and the root overlay of a container; bind
+mounts of the same device are listed once. The key is derived from the mount point (\texttt{fs\_root} for \texttt{/}). \\
+\bottomrule
+\end{longtable}
+
+\subsection{gpu \textnormal{--- graphics}}
+
+\begin{longtable}{@{}p{5.7cm}p{10cm}@{}}
+\toprule Key & Content \\ \midrule \endhead
+\key{gpu_}\textit{n}              & One per display controller on the PCI bus: vendor and model (looked up in the system's
+\cmd{pci.ids} database, or the NVIDIA driver's model name), kernel driver, and video memory where the driver exposes it
+(AMD). Without PCI graphics, DRM devices of system-on-chip boards are listed; otherwise \texttt{none detected}. \\
+\key{gpu_nvidia_driver}$^\dagger$ & Version of the proprietary NVIDIA kernel module. \\
+\bottomrule
+\end{longtable}
+
+\subsection{network}
+
+\begin{longtable}{@{}p{5.7cm}p{10cm}@{}}
+\toprule Key & Content \\ \midrule \endhead
+\key{net_}\textit{interface}$^{*}$ & State, wireless marker, link speed, MTU, driver, MAC address and IPv4/IPv6 addresses with prefix
+length. With \opt{--redact} the MAC and the addresses are removed, the rest is kept. The loopback device, Docker/KVM bridges and
+\texttt{veth} pairs are hidden unless \opt{--verbose} is given. \\
+\bottomrule
+\end{longtable}
+
+\subsection{sensors \textnormal{--- power and temperature}}
+
+\begin{longtable}{@{}p{5.7cm}p{10cm}@{}}
+\toprule Key & Content \\ \midrule \endhead
+\key{battery_}\textit{name}   & Charge, status, technology, health (full charge relative to design capacity), cycle count, model. \\
+\key{ac_}\textit{name}        & Mains adapter connected or not. \\
+\key{temp_}\textit{chip}      & Temperature of each hardware monitor chip (\texttt{coretemp}, \texttt{k10temp}, \texttt{nvme}, \dots); thermal
+zones are used when no chip is present. \\
+\key{sensors}               & Shown instead when nothing is exposed (typical for virtual machines and containers). \\
+\bottomrule
+\end{longtable}
+
+\subsection{environment}
+
+\begin{longtable}{@{}p{5.7cm}p{10cm}@{}}
+\toprule Key & Content \\ \midrule \endhead
+\key{user}$^{*}$\newline\key{is_root} & Effective user name and whether it is the superuser. \\
+\key{shell}\newline\key{lang}\newline\key{term} & \texttt{\$SHELL}, \texttt{\$LANG}, \texttt{\$TERM}. \\
+\key{session_type}\newline\key{desktop}  & \texttt{\$XDG\_SESSION\_TYPE} (x11/wayland) and \texttt{\$XDG\_CURRENT\_DESKTOP}. \\
+\key{timezone}                    & From \cmd{/etc/timezone} or the \cmd{/etc/localtime} link. \\
+\bottomrule
+\end{longtable}
+Entries whose variable is unset are left out.
+
+\subsection{build \textnormal{--- how this program was built}}
+
+\begin{longtable}{@{}p{5.7cm}p{10cm}@{}}
+\toprule Key & Content \\ \midrule \endhead
+\key{compiler}\newline\key{stdlib}    & Compiler and C++ standard library with versions. \\
+\key{cxx_std}                   & C++ language level actually compiled, e.g.\ \texttt{C++20 (202002L)}. \\
+\key{build_type}\newline\key{cxx_flags} & CMake build type and the compiler flags in effect. \\
+\key{pointer_bits}\newline\key{endianness} & Word size and byte order of this binary. \\
+\key{assertions}                & Whether \cmd{assert} is active (\texttt{NDEBUG}). \\
+\key{libc}$^\dagger$              & C library version (glibc). \\
+\key{sysinfo_version}           & Version of the collector. \\
+\bottomrule
+\end{longtable}
+
+% ---------------------------------------------------------------------------
+\section{Recipes}
+
+\subsection{Checking a machine before benchmarking}
+
+Timing results are only comparable when the machine is in a known state. Look at:
+
+\begin{lstlisting}
+sysinfo -s cpu,memory,sensors | grep -Ei 'governor|turbo|smt|frequency|limit|cur'
+\end{lstlisting}
+
+\begin{itemize}
+  \item \texttt{cpu\_governor} should be \texttt{performance} and not \texttt{(mixed)}; \texttt{powersave} lets the clock drift.
+  \item \texttt{cpu\_turbo} and \texttt{cpu\_smt} should be what you intend; decide once and keep it.
+  \item \texttt{cpu\_cgroup\_limit}, \texttt{ram\_cgroup\_limit} and \texttt{cpu\_usable\_cores} reveal a container or \cmd{taskset} that
+        restricts the program.
+  \item \texttt{virtualized} \texttt{yes} means timings are subject to the host's scheduling.
+  \item \texttt{build\_type} must be \texttt{Release} or similar; \texttt{assertions} should be \texttt{disabled}.
+\end{itemize}
+
+\subsection{Recording the machine next to results}
+
+\begin{lstlisting}
+sysinfo -j -o results/machine.json
+sysinfo -f kv -s core -r > results/machine.kv
+\end{lstlisting}
+
+\subsection{Comparing two machines}
+
+\begin{lstlisting}
+sysinfo -f kv -r -x environment,network > a.kv      # on machine A
+sysinfo -f kv -r -x environment,network > b.kv      # on machine B
+diff a.kv b.kv
+\end{lstlisting}
+
+\subsection{Using values in a script}
+
+\begin{lstlisting}
+cores=$(sysinfo -f kv -s cpu | sed -n 's/^sys_cpu_physical_cores=//p')
+make -j"$cores"
+\end{lstlisting}
+
+\subsection{Reporting a bug}
+
+Attach the output of \cmd{sysinfo -v -r}; the hostname, user name, MAC and IP addresses are removed.
+
+% ---------------------------------------------------------------------------
+\section{Using the library}
+\label{sec:library}
+
+The collector is a separate static library, \texttt{sysinfo::sysinfo}, that the command line tool is built on. Use it from
+another CMake project:
+
+\begin{lstlisting}[style=cmake]
+add_subdirectory(external/sysinfo)                 # or FetchContent
+target_link_libraries(my_target PRIVATE sysinfo::sysinfo)
+\end{lstlisting}
+
+\begin{lstlisting}[style=cpp]
+#include <sysinfo.h>
+
+// structured: sections with titled entries
+for (const sysinfo::Section& s : sysinfo::collectAll()) {
+  std::cout << s.title << '\n';
+  for (const sysinfo::Entry& e : s.entries)
+    std::cout << "  " << e.label << ": " << e.display(/*redact=*/false) << '\n';
+}
+
+// flat: the "sys_*" pairs of the core sections
+sysinfo::KeyValues kv = sysinfo::collect();
+// e.g. with Google Benchmark:
+for (const auto& [key, value] : kv) benchmark::AddCustomContext(key, value);
+\end{lstlisting}
+
+\begin{center}
+\begin{tabular}{@{}p{6.2cm}p{8.6cm}@{}}
+\toprule
+Function & Purpose \\
+\midrule
+\texttt{version()}                    & Library version string. \\
+\texttt{sections()}                   & Identifier, title and ``core'' flag of every section. \\
+\texttt{collectSection(id, verbose)}  & One section; an unknown identifier gives an empty section. \\
+\texttt{collectAll(verbose)}          & All sections in display order. \\
+\texttt{collect()}                    & Flat list for the core sections (system, cpu, memory, build). \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+None of the functions throws; anything that fails is reported as \texttt{unknown}, left out, or (for a whole section)
+shown as a single \texttt{could not be collected} entry.
+
+\textbf{Build information.} CMake generates \cmd{build\_info.h} with the build type and compiler flags.
+
+% ---------------------------------------------------------------------------
+\section{How the information is obtained}
+
+\begin{center}
+\small
+\begin{tabular}{@{}p{3.0cm}p{12cm}@{}}
+\toprule
+Section & Sources \\
+\midrule
+system      & \path{/etc/os-release}, \texttt{uname}, \path{/sys/devices/virtual/dmi/id/*}, \path{/proc/uptime}, \path{/proc/loadavg}, \path{/proc/1/cgroup} \\
+cpu         & \path{/proc/cpuinfo}, \path{/sys/devices/system/cpu/*} (topology, cpufreq, cache, smt, intel\_pstate), \path{/sys/devices/system/node},
+              \texttt{sched\_getaffinity}, \path{/sys/fs/cgroup/cpu.max} \\
+memory      & \path{/proc/meminfo}, \path{/sys/kernel/mm/transparent_hugepage}, \path{/sys/fs/cgroup/memory.max}, \texttt{sysconf} \\
+storage     & \path{/sys/block/*}, \path{/proc/self/mounts}, \texttt{statvfs} \\
+gpu         & \path{/sys/bus/pci/devices/*}, \texttt{pci.ids} (\path{/usr/share/hwdata}, \path{/usr/share/misc}), \path{/proc/driver/nvidia}, \path{/sys/class/drm} \\
+network     & \path{/sys/class/net/*}, \texttt{getifaddrs} \\
+sensors     & \path{/sys/class/power_supply}, \path{/sys/class/hwmon}, \path{/sys/class/thermal} \\
+environment & environment variables, \texttt{getpwuid}, \path{/etc/timezone} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Limits to be aware of}
+
+\begin{itemize}
+  \item \textbf{No root, no external tools.} Information that needs administrator rights is not reported:
+        memory module type and speed (\cmd{dmidecode}), serial numbers, SMART data, GPU load and clocks.
+  \item \textbf{Virtual machines and containers} show what the guest sees. The CPU model may be generic, frequency and
+        temperature files are often missing, and the cache sizes may be those of the host.
+  \item \textbf{Caches} are read for cpu0 only. On hybrid processors (performance and efficiency cores) other cores can differ.
+  \item \textbf{Current frequency} is a momentary reading of cpu0.
+  \item \textbf{cgroup limits} are read for the program's own cgroup and the root; limits set on intermediate parent groups
+        are not followed.
+  \item \textbf{GPU names} depend on an up-to-date \cmd{pci.ids} (package \texttt{hwdata} or \texttt{pci.ids}); otherwise the
+        numeric PCI identifier is shown.
+  \item \textbf{Other platforms.} On macOS (via \cmd{sysctl}) and Windows (Win32 API) only the system, cpu, memory and build
+        sections are filled, with fewer entries; the remaining sections say \texttt{not available on this platform}. These
+        ports compile conditionally and have not been tested as thoroughly as Linux.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\section{Privacy}
+\label{sec:privacy}
+
+\prog{} only reads local files and never sends anything anywhere. The output can nevertheless identify the machine or
+its user: the hostname, the user name, the MAC and IP addresses, the board and firmware version.
+\opt{--redact} replaces \texttt{hostname} and \texttt{user} by \texttt{<redacted>} and removes the MAC and IP addresses from the
+network entries. It does \emph{not} remove other details such as the exact machine model, the time zone or the kernel version; use
+\opt{-x network,environment,system} to leave whole sections out when in doubt.
+
+% ---------------------------------------------------------------------------
+\section{Troubleshooting}
+\label{sec:trouble}
+
+\begin{description}[style=nextline,leftmargin=0.6cm]
+  \item[CMake: ``Target requires the language dialect CXX20''] The compiler is too old. Use GCC 11+ or Clang 14+
+        (\cmd{-DCMAKE\_CXX\_COMPILER=g++-13}).
+  \item[Many entries say \texttt{unknown}] The file under \cmd{/proc} or \cmd{/sys} does not exist or is not readable. This is normal in
+        containers, virtual machines and restricted sandboxes. Compare with \cmd{sysinfo -v}.
+  \item[No frequency, governor or turbo lines] The kernel exposes no \texttt{cpufreq} interface (virtual machine, or the driver is
+        not loaded).
+  \item[\texttt{cpu\_physical\_cores} equals \texttt{cpu\_logical\_cores}] The CPU has no SMT, SMT is disabled, or the hypervisor presents
+        each thread as a core.
+  \item[Garbage escape codes in a file or pipe] Colour is only enabled automatically on a terminal; add \opt{--no-color} or set \texttt{NO\_COLOR}
+        when a wrapper forces it.
+  \item[GPU shows only hexadecimal numbers] Install the PCI ID database: \cmd{sudo apt install hwdata} (or \cmd{pci.ids}).
+  \item[Exit status 2] Read the message on standard error; \opt{--help} lists the valid options and \opt{--list} the sections.
+\end{description}
+
+\end{document}

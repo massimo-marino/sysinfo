@@ -1,0 +1,26 @@
+Usage: sysinfo [OPTIONS]
+
+Print the hardware and software specifications of this machine.
+
+Selection:
+  -s, --section LIST     only these sections (comma separated, repeatable);
+                         names: system cpu memory storage gpu network sensors
+                         environment build; also "core" and "all"
+  -x, --exclude LIST     leave these sections out (same syntax)
+  -l, --list             list the available sections and exit
+  -v, --verbose          include the long tail: all CPU flags, pseudo
+                         filesystems, virtual network interfaces, ...
+
+Output:
+  -f, --format FORMAT    text (default), json or kv (key=value lines)
+  -j, --json             same as --format json
+  -o, --output FILE      write to FILE instead of standard output
+  -r, --redact           hide hostname, user name, MAC and IP addresses
+      --color[=WHEN]     colour the text format: auto (default), always, never
+      --no-color         same as --color=never (NO_COLOR is honoured as well)
+
+Other:
+  -h, --help             show this help and exit
+  -V, --version          show the version and exit
+
+Exit status: 0 success, 1 output could not be written, 2 usage error.
